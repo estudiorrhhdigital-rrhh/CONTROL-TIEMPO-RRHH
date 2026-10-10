@@ -9,66 +9,22 @@
 <body>
   <header class="topbar">
     <h1>Control de Tiempo</h1>
-    <span class="subtitle">Registro de horas por empresa y proyecto</span>
+    <span class="subtitle">Tiempo trabajado por empresa, facturación y costo por hora</span>
   </header>
 
   <main>
-    <!-- Cronómetro -->
-    <section class="card" id="timer-card">
-      <h2>Cronómetro</h2>
-      <div class="timer-display" id="timer-display">00:00:00</div>
-      <div class="timer-status" id="timer-status">Sin tarea en curso</div>
-
-      <form id="timer-form" class="grid">
-        <label>Empresa
-          <input list="lista-empresas" id="t-empresa" placeholder="Ej: Acme S.A." autocomplete="off" required>
-        </label>
-        <label>Proyecto
-          <input list="lista-proyectos" id="t-proyecto" placeholder="Ej: Liquidación de sueldos" autocomplete="off">
-        </label>
-        <label class="full">Descripción (opcional)
-          <input id="t-descripcion" placeholder="¿Qué estás haciendo?" autocomplete="off">
-        </label>
-        <div class="full actions">
-          <button type="submit" class="btn btn-start" id="btn-start">▶ Iniciar</button>
-          <button type="button" class="btn btn-stop" id="btn-stop" hidden>■ Finalizar</button>
-          <button type="button" class="btn btn-ghost" id="btn-cancel" hidden>Descartar</button>
-        </div>
-      </form>
-      <datalist id="lista-empresas"></datalist>
-      <datalist id="lista-proyectos"></datalist>
-
-      <div id="recientes" class="recientes"></div>
+    <!-- Cronómetros por empresa -->
+    <section>
+      <h2 class="section-title">Cronómetros</h2>
+      <div class="empresas" id="empresas"></div>
     </section>
 
-    <!-- Resumen -->
+    <!-- Cuadro de control -->
     <section class="card">
       <div class="card-head">
-        <h2>Resumen</h2>
-        <div class="filters">
-          <select id="f-periodo">
-            <option value="hoy">Hoy</option>
-            <option value="semana">Esta semana</option>
-            <option value="mes" selected>Este mes</option>
-            <option value="mes-ant">Mes anterior</option>
-            <option value="todo">Todo</option>
-            <option value="rango">Rango…</option>
-          </select>
-          <input type="date" id="f-desde" hidden>
-          <input type="date" id="f-hasta" hidden>
-          <select id="f-empresa"><option value="">Todas las empresas</option></select>
-        </div>
-      </div>
-      <div class="total-general">Total: <strong id="total-general">0 h 00 min</strong></div>
-      <div id="resumen"></div>
-    </section>
-
-    <!-- Registros -->
-    <section class="card">
-      <div class="card-head">
-        <h2>Registros</h2>
+        <h2>Cuadro de control</h2>
         <div class="actions">
-          <button class="btn btn-ghost" id="btn-manual">+ Carga manual</button>
+          <select id="f-mes"><option value="">Todos los meses</option></select>
           <button class="btn btn-ghost" id="btn-csv">Exportar CSV</button>
           <button class="btn btn-ghost" id="btn-backup">Copia de seguridad</button>
           <label class="btn btn-ghost">Restaurar
@@ -79,28 +35,62 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Fecha</th><th>Empresa</th><th>Proyecto</th><th>Descripción</th><th>Inicio</th><th>Fin</th><th>Duración</th><th></th></tr>
+            <tr>
+              <th>Mes</th><th>Empresa</th><th class="num">Tiempo</th><th class="num">Horas</th>
+              <th class="num">Importe facturado</th><th class="num">Costo por hora</th><th></th>
+            </tr>
           </thead>
-          <tbody id="registros"></tbody>
+          <tbody id="control"></tbody>
+          <tfoot id="control-total"></tfoot>
         </table>
       </div>
-      <p class="empty" id="sin-registros">No hay registros en el período seleccionado.</p>
+      <p class="empty" id="sin-control">Todavía no hay períodos finalizados.</p>
     </section>
   </main>
 
-  <!-- Diálogo de edición / carga manual -->
-  <dialog id="dlg">
-    <form method="dialog" id="dlg-form" class="grid">
-      <h3 class="full" id="dlg-title">Editar registro</h3>
-      <label>Empresa <input list="lista-empresas" id="d-empresa" required></label>
-      <label>Proyecto <input list="lista-proyectos" id="d-proyecto"></label>
-      <label class="full">Descripción <input id="d-descripcion"></label>
-      <label>Inicio <input type="datetime-local" id="d-inicio" required></label>
-      <label>Fin <input type="datetime-local" id="d-fin" required></label>
-      <p class="full error" id="dlg-error"></p>
-      <div class="full actions">
+  <!-- Paso 1 al finalizar: mes -->
+  <dialog id="dlg-mes">
+    <form method="dialog" class="dlg-form">
+      <h3>Finalizar <span id="mes-empresa"></span></h3>
+      <p class="subtitle">Tiempo a trasladar: <strong id="mes-tiempo"></strong></p>
+      <label>¿A qué mes corresponde?
+        <input type="month" id="in-mes" required>
+      </label>
+      <div class="actions end">
         <button value="cancel" class="btn btn-ghost" formnovalidate>Cancelar</button>
-        <button value="ok" class="btn btn-start" id="dlg-ok">Guardar</button>
+        <button value="ok" class="btn btn-start">Siguiente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Paso 2: importe de facturación -->
+  <dialog id="dlg-importe">
+    <form method="dialog" class="dlg-form">
+      <h3>Importe de facturación</h3>
+      <p class="subtitle"><span id="imp-detalle"></span></p>
+      <label>Importe facturado ($)
+        <input type="text" inputmode="decimal" id="in-importe" placeholder="Ej: 150000,00" autocomplete="off">
+      </label>
+      <p class="resultado" id="imp-preview"></p>
+      <p class="error" id="imp-error"></p>
+      <div class="actions end">
+        <button value="cancel" class="btn btn-ghost" formnovalidate>Cargar después</button>
+        <button value="ok" class="btn btn-start" id="imp-ok">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ajuste manual del acumulado -->
+  <dialog id="dlg-ajuste">
+    <form method="dialog" class="dlg-form">
+      <h3>Corregir acumulado de <span id="aj-empresa"></span></h3>
+      <div class="actions">
+        <label>Horas <input type="number" id="aj-h" min="0" step="1"></label>
+        <label>Minutos <input type="number" id="aj-m" min="0" max="59" step="1"></label>
+      </div>
+      <div class="actions end">
+        <button value="cancel" class="btn btn-ghost" formnovalidate>Cancelar</button>
+        <button value="ok" class="btn btn-start">Guardar</button>
       </div>
     </form>
   </dialog>

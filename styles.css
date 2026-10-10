@@ -70,21 +70,41 @@ main {
 
 #timer-card.running { background: var(--running-bg); }
 
-.timer-display {
-  font-size: clamp(2.5rem, 10vw, 4rem);
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  text-align: center;
-}
-.timer-status { text-align: center; color: var(--muted); margin-bottom: 16px; }
+.section-title { font-size: 1.1rem; margin: 0 0 12px; }
 
-.grid {
+.empresas {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 12px;
 }
-.grid .full { grid-column: 1 / -1; }
-@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+.empresa {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.empresa.running { background: var(--running-bg); border-color: var(--start); }
+.empresa-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.empresa-nombre { font-weight: 700; }
+.estado { font-size: .75rem; color: var(--muted); }
+.empresa.running .estado { color: var(--start); font-weight: 600; }
+.acumulado {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--bg);
+}
+.acumulado-label { font-size: .75rem; color: var(--muted); text-align: center; margin-top: -4px; }
+.botones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.botones .btn { justify-content: center; }
+.botones .btn-fin { grid-column: 1 / -1; }
 
 label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
 
@@ -97,17 +117,16 @@ input, select {
   padding: 8px 10px;
   min-width: 0;
 }
-input:disabled { opacity: .7; }
 
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions.end { justify-content: flex-end; }
 
 .btn {
   font: inherit;
   font-weight: 600;
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 8px 14px;
   cursor: pointer;
   color: #fff;
   display: inline-flex;
@@ -115,54 +134,34 @@ input:disabled { opacity: .7; }
   flex-direction: row;
   font-size: .9rem;
 }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
 .btn-start { background: var(--start); }
 .btn-stop { background: var(--stop); }
+.btn-fin { background: var(--accent); }
 .btn-ghost { background: transparent; color: var(--accent); border-color: var(--border); }
 .btn-sm { padding: 4px 8px; font-size: .8rem; }
-.btn:hover { filter: brightness(1.08); }
-
-.recientes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.chip {
-  font: inherit;
-  font-size: .8rem;
-  background: transparent;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-.chip:hover { border-color: var(--accent); }
-
-.total-general { margin-bottom: 12px; }
-
-.empresa-bloque { border-top: 1px solid var(--border); padding: 8px 0; }
-.empresa-fila, .proyecto-fila {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-variant-numeric: tabular-nums;
-}
-.empresa-fila { font-weight: 600; }
-.proyecto-fila { color: var(--muted); padding-left: 16px; font-size: .9rem; }
-.barra { height: 4px; background: var(--accent); border-radius: 2px; margin: 4px 0; }
+.btn:hover:not(:disabled) { filter: brightness(1.08); }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-td.desc { white-space: normal; min-width: 160px; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { color: var(--muted); font-weight: 600; }
-td.num { font-variant-numeric: tabular-nums; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
+tfoot td { font-weight: 700; border-bottom: none; }
+.pendiente { color: var(--muted); font-style: italic; }
 
 .empty { color: var(--muted); text-align: center; }
 .error { color: var(--stop); margin: 0; min-height: 1em; }
+.resultado { margin: 0; font-weight: 600; min-height: 1.4em; }
 
 dialog {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
   color: var(--text);
-  width: min(560px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
 }
 dialog h3 { margin: 0; }
 dialog::backdrop { background: rgba(0, 0, 0, .4); }
+.dlg-form { display: flex; flex-direction: column; gap: 12px; }
+.dlg-form .subtitle { margin: 0; }

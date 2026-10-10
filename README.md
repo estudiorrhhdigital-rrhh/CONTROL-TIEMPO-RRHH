@@ -1,32 +1,40 @@
 # Control de Tiempo
 
-Programa sencillo para registrar el tiempo trabajado por **empresa** y **proyecto**
-con un cronómetro de inicio/fin.
+Programa para cronometrar el tiempo trabajado por empresa, trasladarlo a un
+cuadro de control mensual y calcular el costo por hora según lo facturado.
+
+Empresas: GRUPO TEBA, CONSOCIOS, IMAGEN, BLANCO, PILINA, INELECTO ALTA/SKY VISION.
+(Se pueden cambiar en la lista `EMPRESAS` al inicio de `app.js`.)
 
 ## Cómo usarlo
 
-1. Abrí `index.html` en el navegador (doble clic; no requiere instalación ni internet).
-2. Escribí la **empresa**, opcionalmente el **proyecto** y una descripción, y tocá **▶ Iniciar**.
-3. Cuando terminás, tocá **■ Finalizar**: el tiempo queda guardado como registro.
+Abrí `index.html` en el navegador (doble clic; no requiere instalación ni internet).
 
-## Funciones
+Cada empresa tiene su recuadro con:
 
-- Un cronómetro activo a la vez; si iniciás otra tarea, la anterior se finaliza sola.
+- **▶ Inicio**: empieza a contar el tiempo de trabajo.
+- **■ Detener**: pausa el conteo. El tiempo queda en el **cuadro de tiempo acumulado**
+  y se sigue sumando cada vez que volvés a tocar Inicio.
+- **✔ Finalizar y trasladar**: pasa el tiempo acumulado al **Cuadro de control**:
+  1. pide el **mes** al que corresponde;
+  2. pide el **importe de facturación** y calcula el **costo por hora**
+     (importe ÷ horas trabajadas). El importe se puede cargar después con **+ Importe**.
+- **✎** junto a "Tiempo acumulado": corrige a mano el acumulado (por ejemplo, si te
+  olvidaste de detenerlo).
+
+Notas:
+
+- Solo una empresa cuenta a la vez: al iniciar otra, la anterior se detiene sola.
 - El cronómetro sigue corriendo aunque cierres o recargues la página.
-- Accesos rápidos a las últimas empresas/proyectos usados.
-- Resumen de horas por empresa y proyecto (hoy, semana, mes, mes anterior, rango o todo).
-- Edición y eliminación de registros, y carga manual de horas olvidadas.
-- Exportación a CSV (se abre directo en Excel) del período filtrado.
-- Copia de seguridad y restauración en JSON.
+- Si finalizás dos veces la misma empresa en el mismo mes, el tiempo se suma a la misma fila.
+
+## Cuadro de control
+
+Muestra por mes y empresa: tiempo, horas, importe facturado y costo por hora, con totales.
+Se puede filtrar por mes, exportar a CSV (se abre en Excel) y editar o eliminar filas.
 
 ## Dónde se guardan los datos
 
-Los datos quedan en el almacenamiento local del navegador (`localStorage`), en esa
-computadora y ese navegador. Usá **Copia de seguridad** periódicamente y **Restaurar**
-para pasar los datos a otro equipo.
-
-## Publicarlo en línea (opcional)
-
-Activando **GitHub Pages** en este repositorio (Settings → Pages → rama principal, carpeta raíz)
-el programa queda disponible desde cualquier dispositivo, incluido el celular.
-Cada dispositivo guarda sus propios registros.
+En el almacenamiento local del navegador (`localStorage`), en esa computadora y ese
+navegador. Usá **Copia de seguridad** periódicamente y **Restaurar** para pasar los
+datos a otro equipo.
