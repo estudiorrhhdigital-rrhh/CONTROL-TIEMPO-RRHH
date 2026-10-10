@@ -11,7 +11,8 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #0f1419;
     --card: #182029;
     --text: #e6edf3;
@@ -22,6 +23,19 @@
     --stop: #f85149;
     --running-bg: #12301d;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1419;
+  --card: #182029;
+  --text: #e6edf3;
+  --muted: #8b98a5;
+  --border: #2b3640;
+  --accent: #4c9aff;
+  --start: #3fb950;
+  --stop: #f85149;
+  --running-bg: #12301d;
 }
 
 * { box-sizing: border-box; }
@@ -165,3 +179,22 @@ dialog h3 { margin: 0; }
 dialog::backdrop { background: rgba(0, 0, 0, .4); }
 .dlg-form { display: flex; flex-direction: column; gap: 12px; }
 .dlg-form .subtitle { margin: 0; }
+
+.guardado { display: block; font-size: .8rem; margin-top: 4px; color: var(--muted); }
+.guardado.nube { color: var(--start); }
+.guardado.local { color: var(--stop); }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--card);
+  padding: 10px 16px;
+  border-radius: 8px;
+  max-width: calc(100vw - 32px);
+  font-size: .9rem;
+  z-index: 10;
+}
+.btn:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

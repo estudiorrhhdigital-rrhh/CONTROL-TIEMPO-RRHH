@@ -10,6 +10,7 @@
   <header class="topbar">
     <h1>Control de Tiempo</h1>
     <span class="subtitle">Tiempo trabajado por empresa, facturación y costo por hora</span>
+    <span class="guardado" id="guardado">Conectando…</span>
   </header>
 
   <main>
@@ -25,11 +26,7 @@
         <h2>Cuadro de control</h2>
         <div class="actions">
           <select id="f-mes"><option value="">Todos los meses</option></select>
-          <button class="btn btn-ghost" id="btn-csv">Exportar CSV</button>
-          <button class="btn btn-ghost" id="btn-backup">Copia de seguridad</button>
-          <label class="btn btn-ghost">Restaurar
-            <input type="file" id="in-restore" accept="application/json" hidden>
-          </label>
+          <button class="btn btn-ghost" id="btn-csv">Exportar a Excel (CSV)</button>
         </div>
       </div>
       <div class="table-wrap">
@@ -37,7 +34,7 @@
           <thead>
             <tr>
               <th>Mes</th><th>Empresa</th><th class="num">Tiempo</th><th class="num">Horas</th>
-              <th class="num">Importe facturado</th><th class="num">Costo por hora</th><th></th>
+              <th class="num">Importe facturado</th><th class="num">Costo por hora</th><th class="num">Costo por minuto</th><th></th>
             </tr>
           </thead>
           <tbody id="control"></tbody>
@@ -79,6 +76,19 @@
       </div>
     </form>
   </dialog>
+
+  <!-- Confirmación -->
+  <dialog id="dlg-confirm">
+    <form method="dialog" class="dlg-form">
+      <p id="confirm-txt"></p>
+      <div class="actions end">
+        <button value="cancel" class="btn btn-ghost">Cancelar</button>
+        <button value="ok" class="btn btn-stop">Eliminar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
 
   <!-- Ajuste manual del acumulado -->
   <dialog id="dlg-ajuste">

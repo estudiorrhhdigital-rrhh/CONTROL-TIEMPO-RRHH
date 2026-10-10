@@ -8,7 +8,11 @@ Empresas: GRUPO TEBA, CONSOCIOS, IMAGEN, BLANCO, PILINA, INELECTO ALTA/SKY VISIO
 
 ## Cómo usarlo
 
-Abrí `index.html` en el navegador (doble clic; no requiere instalación ni internet).
+Usá el link publicado: https://claude.ai/artifact/J6kDKoEuQHt2CRSyqTYCMS
+Ahí los datos se guardan en la nube y no se pierden al cerrar el navegador.
+
+También se puede abrir `index.html` directamente, pero en ese caso los datos quedan
+solo en ese navegador (el programa lo avisa arriba en rojo).
 
 Cada empresa tiene su recuadro con:
 
@@ -18,7 +22,8 @@ Cada empresa tiene su recuadro con:
 - **✔ Finalizar y trasladar**: pasa el tiempo acumulado al **Cuadro de control**:
   1. pide el **mes** al que corresponde;
   2. pide el **importe de facturación** y calcula el **costo por hora**
-     (importe ÷ horas trabajadas). El importe se puede cargar después con **+ Importe**.
+     (importe ÷ horas trabajadas, donde los minutos cuentan como fracción de hora:
+     10 h 30 min = 10,5 h) y el **costo por minuto** (importe ÷ minutos trabajados). El importe se puede cargar después con **+ Importe**.
 - **✎** junto a "Tiempo acumulado": corrige a mano el acumulado (por ejemplo, si te
   olvidaste de detenerlo).
 
@@ -30,11 +35,5 @@ Notas:
 
 ## Cuadro de control
 
-Muestra por mes y empresa: tiempo, horas, importe facturado y costo por hora, con totales.
-Se puede filtrar por mes, exportar a CSV (se abre en Excel) y editar o eliminar filas.
-
-## Dónde se guardan los datos
-
-En el almacenamiento local del navegador (`localStorage`), en esa computadora y ese
-navegador. Usá **Copia de seguridad** periódicamente y **Restaurar** para pasar los
-datos a otro equipo.
+Muestra por mes y empresa: tiempo, horas, importe facturado, costo por hora y costo por
+minuto, con totales. Se puede filtrar por mes, exportar a Excel (CSV) y editar o eliminar filas.

@@ -13,20 +13,17 @@ const EMPRESAS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Persistencia
+// Estado y almacenamiento
 // ---------------------------------------------------------------------------
-// Estructura guardada:
-// {
+// state = {
 //   cronos:  { [empresa]: { acumulado: ms, inicio: ms | null } },
 //   control: [{ id, mes: 'AAAA-MM', empresa, ms, importe: number | null }]
 // }
+//
+// Los datos se guardan en la nube (capacidad `db` del link publicado):
+//   cronos/<slug-empresa>  y  control/<id>
+// Si la página se abre como archivo suelto, se usa el almacenamiento del navegador.
 const STORAGE_KEY = 'control-tiempo-v2';
-
-function cargar() {
-  let data = null;
-  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { /* sin datos */ }
-  return normalizar(data);
-}
 
 function normalizar(data) {
   const s = {
@@ -39,23 +36,91 @@ function normalizar(data) {
   return s;
 }
 
-let state = cargar();
+function cargarLocal() {
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) { /* sin datos */ }
+  return normalizar(data);
+}
 
-function guardar() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    alert('No se pudieron guardar los datos en este navegador: ' + e.message);
+function guardarLocal() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage bloqueado */ }
+}
+
+let state = cargarLocal();
+let db = null; // namespace de la nube, cuando está disponible
+
+const slug = (empresa) => empresa.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+// Las escrituras a la nube se hacen de a una, en orden.
+let colaEscrituras = Promise.resolve();
+function escribir(fn) {
+  colaEscrituras = colaEscrituras.then(fn).catch((e) => {
+    aviso('No se pudo guardar el último cambio. Revisá la conexión e intentá de nuevo.');
+    console.error(e);
+  });
+  return colaEscrituras;
+}
+
+function guardarCronos(empresas) {
+  guardarLocal();
+  if (!db) return;
+  for (const e of empresas) {
+    const c = state.cronos[e];
+    escribir(() => db.doc('cronos/' + slug(e)).set({ empresa: e, acumulado: c.acumulado, inicio: c.inicio }));
   }
 }
 
-// Mantener sincronizadas varias pestañas abiertas.
-window.addEventListener('storage', (ev) => {
-  if (ev.key === STORAGE_KEY) {
-    state = cargar();
-    render();
+function guardarFila(fila) {
+  guardarLocal();
+  if (db) escribir(() => db.doc('control/' + fila.id).set({ ...fila }));
+}
+
+function borrarFila(id) {
+  state.control = state.control.filter((f) => f.id !== id);
+  guardarLocal();
+  if (db) escribir(() => db.doc('control/' + id).delete());
+}
+
+function marcarGuardado(nube) {
+  const el = $('guardado');
+  el.className = 'guardado ' + (nube ? 'nube' : 'local');
+  el.textContent = nube
+    ? '✓ Datos guardados en la nube'
+    : '⚠ Datos guardados solo en este navegador. Usá el link publicado para no perderlos.';
+}
+
+async function conectarNube() {
+  const use = window.claude && window.claude.use;
+  const ns = use ? await window.claude.use('db').catch(() => null) : null;
+  if (!ns) {
+    marcarGuardado(false);
+    return;
   }
-});
+  db = ns;
+  marcarGuardado(true);
+
+  db.collection('cronos').onSnapshot((snap) => {
+    for (const d of snap.docs) {
+      const v = d.data();
+      if (EMPRESAS.includes(v.empresa)) {
+        state.cronos[v.empresa] = { acumulado: Number(v.acumulado) || 0, inicio: v.inicio || null };
+      }
+    }
+    guardarLocal();
+    render();
+  }, errorNube);
+
+  db.collection('control').onSnapshot((snap) => {
+    state.control = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+    guardarLocal();
+    render();
+  }, errorNube);
+}
+
+function errorNube(e) {
+  console.error(e);
+  aviso('Se perdió la conexión con la nube. Recargá la página.');
+}
 
 // ---------------------------------------------------------------------------
 // Utilidades
@@ -64,6 +129,7 @@ const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, '0');
 const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const HORA = 3600000;
+const MINUTO = 60000;
 
 function reloj(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -99,14 +165,13 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function descargar(nombre, contenido, tipo) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([contenido], { type: tipo }));
-  a.download = nombre;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+let avisoTimer = null;
+function aviso(txt) {
+  const t = $('toast');
+  t.textContent = txt;
+  t.hidden = false;
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => { t.hidden = true; }, 4000);
 }
 
 // Abre un <dialog> y resuelve con true si se confirmó con el botón "ok".
@@ -118,6 +183,30 @@ function preguntar(dlg) {
   });
 }
 
+function confirmar(txt) {
+  $('confirm-txt').textContent = txt;
+  return preguntar($('dlg-confirm'));
+}
+
+async function descargar(nombre, contenido, tipo) {
+  const downloads = window.claude && window.claude.use
+    ? await window.claude.use('downloads').catch(() => null)
+    : null;
+  if (downloads) {
+    try { await downloads.save({ filename: nombre, data: contenido }); } catch (e) {
+      if (e && e.code !== 'declined') aviso('No se pudo descargar el archivo.');
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 // ---------------------------------------------------------------------------
 // Cronómetros
 // ---------------------------------------------------------------------------
@@ -126,35 +215,35 @@ function tiempoActual(empresa) {
   return c.acumulado + (c.inicio ? Date.now() - c.inicio : 0);
 }
 
+// Detiene el cronómetro en memoria; devuelve true si estaba corriendo.
 function detener(empresa) {
   const c = state.cronos[empresa];
-  if (!c.inicio) return;
+  if (!c.inicio) return false;
   c.acumulado += Date.now() - c.inicio;
   c.inicio = null;
+  return true;
 }
 
 function iniciar(empresa) {
   // Solo una empresa corriendo a la vez: las demás se detienen (su tiempo queda acumulado).
-  for (const e of EMPRESAS) if (e !== empresa) detener(e);
+  const cambiadas = EMPRESAS.filter((e) => e !== empresa && detener(e));
   state.cronos[empresa].inicio = Date.now();
-  guardar();
+  guardarCronos([...cambiadas, empresa]);
   render();
 }
 
 function pausar(empresa) {
-  detener(empresa);
-  guardar();
+  if (detener(empresa)) guardarCronos([empresa]);
   render();
 }
 
 async function finalizar(empresa) {
-  detener(empresa);
-  guardar();
+  if (detener(empresa)) guardarCronos([empresa]);
   render();
 
   const ms = state.cronos[empresa].acumulado;
   if (ms < 1000) {
-    alert(`${empresa} no tiene tiempo acumulado para finalizar.`);
+    aviso(`${empresa} no tiene tiempo acumulado para finalizar.`);
     return;
   }
 
@@ -174,7 +263,8 @@ async function finalizar(empresa) {
     state.control.push(fila);
   }
   state.cronos[empresa].acumulado = 0;
-  guardar();
+  guardarFila(fila);
+  guardarCronos([empresa]);
   render();
 
   // Paso 2: importe de facturación
@@ -192,14 +282,14 @@ async function pedirImporte(fila) {
   if (!(await preguntar($('dlg-importe')))) return;
   const imp = parseImporte($('in-importe').value);
   fila.importe = imp === null ? null : imp;
-  guardar();
+  guardarFila(fila);
   render();
 }
 
 function actualizarPreview(fila) {
   const imp = parseImporte($('in-importe').value);
   $('imp-preview').textContent = imp > 0
-    ? `Costo por hora: ${fmtPesos(imp / horasDec(fila.ms))}`
+    ? `Costo por hora: ${fmtPesos(imp / horasDec(fila.ms))} · por minuto: ${fmtPesos(imp / (fila.ms / MINUTO))}`
     : '';
 }
 
@@ -212,18 +302,17 @@ $('imp-ok').addEventListener('click', (ev) => {
 });
 
 async function ajustar(empresa) {
-  detener(empresa);
-  guardar();
+  if (detener(empresa)) guardarCronos([empresa]);
   render();
-  const min = Math.round(state.cronos[empresa].acumulado / 60000);
+  const min = Math.round(state.cronos[empresa].acumulado / MINUTO);
   $('aj-empresa').textContent = empresa;
   $('aj-h').value = Math.floor(min / 60);
   $('aj-m').value = min % 60;
   if (!(await preguntar($('dlg-ajuste')))) return;
   const h = Math.max(0, parseInt($('aj-h').value, 10) || 0);
   const m = Math.max(0, parseInt($('aj-m').value, 10) || 0);
-  state.cronos[empresa].acumulado = (h * 60 + m) * 60000;
-  guardar();
+  state.cronos[empresa].acumulado = (h * 60 + m) * MINUTO;
+  guardarCronos([empresa]);
   render();
 }
 
@@ -288,6 +377,9 @@ function renderFiltroMes() {
   sel.value = meses.includes(actual) ? actual : '';
 }
 
+const costoHora = (imp, ms) => (ms ? fmtPesos(imp / horasDec(ms)) : '—');
+const costoMinuto = (imp, ms) => (ms ? fmtPesos(imp / (ms / MINUTO)) : '—');
+
 function renderControl() {
   const filas = filasFiltradas();
   $('sin-control').hidden = filas.length > 0;
@@ -298,10 +390,11 @@ function renderControl() {
       <td class="num">${reloj(f.ms)}</td>
       <td class="num">${fmtHoras(f.ms)}</td>
       <td class="num">${f.importe != null ? fmtPesos(f.importe) : '<span class="pendiente">pendiente</span>'}</td>
-      <td class="num">${f.importe != null ? fmtPesos(f.importe / horasDec(f.ms)) : '—'}</td>
+      <td class="num">${f.importe != null ? costoHora(f.importe, f.ms) : '—'}</td>
+      <td class="num">${f.importe != null ? costoMinuto(f.importe, f.ms) : '—'}</td>
       <td>
-        <button class="btn btn-ghost btn-sm" data-imp="${f.id}">${f.importe != null ? '✎ Importe' : '+ Importe'}</button>
-        <button class="btn btn-ghost btn-sm" data-del="${f.id}" title="Eliminar">🗑</button>
+        <button class="btn btn-ghost btn-sm" data-imp="${escapeHtml(f.id)}">${f.importe != null ? '✎ Importe' : '+ Importe'}</button>
+        <button class="btn btn-ghost btn-sm" data-del="${escapeHtml(f.id)}" title="Eliminar">🗑</button>
       </td>
     </tr>`).join('');
 
@@ -319,19 +412,25 @@ function renderControl() {
       <td class="num">${reloj(ms)}</td>
       <td class="num">${fmtHoras(ms)}</td>
       <td class="num">${fmtPesos(imp)}</td>
-      <td class="num">${msFact ? fmtPesos(imp / horasDec(msFact)) : '—'}</td>
+      <td class="num">${costoHora(imp, msFact)}</td>
+      <td class="num">${costoMinuto(imp, msFact)}</td>
       <td></td>
     </tr>`;
 }
 
-$('control').addEventListener('click', (ev) => {
+$('control').addEventListener('click', async (ev) => {
   const btn = ev.target.closest('button');
   if (!btn) return;
-  if (btn.dataset.imp) pedirImporte(state.control.find((f) => f.id === btn.dataset.imp));
-  if (btn.dataset.del && confirm('¿Eliminar esta fila del cuadro de control?')) {
-    state.control = state.control.filter((f) => f.id !== btn.dataset.del);
-    guardar();
-    render();
+  if (btn.dataset.imp) {
+    const fila = state.control.find((f) => f.id === btn.dataset.imp);
+    if (fila) pedirImporte(fila);
+  }
+  if (btn.dataset.del) {
+    const id = btn.dataset.del;
+    if (await confirmar('¿Eliminar esta fila del cuadro de control?')) {
+      borrarFila(id);
+      render();
+    }
   }
 });
 
@@ -345,41 +444,22 @@ function render() {
 }
 
 // ---------------------------------------------------------------------------
-// Exportar / respaldo
+// Exportar
 // ---------------------------------------------------------------------------
 $('btn-csv').addEventListener('click', () => {
   const celda = (v) => `"${String(v).replace(/"/g, '""')}"`;
   const num = (n) => n.toFixed(2).replace('.', ',');
-  const filas = [['Mes', 'Empresa', 'Tiempo (hh:mm:ss)', 'Horas', 'Importe facturado', 'Costo por hora']]
+  const filas = [['Mes', 'Empresa', 'Tiempo (hh:mm:ss)', 'Horas', 'Importe facturado', 'Costo por hora', 'Costo por minuto']]
     .concat(filasFiltradas().map((f) => [
       nombreMes(f.mes), f.empresa, reloj(f.ms), num(horasDec(f.ms)),
       f.importe != null ? num(f.importe) : '',
       f.importe != null ? num(f.importe / horasDec(f.ms)) : '',
+      f.importe != null ? num(f.importe / (f.ms / MINUTO)) : '',
     ]));
   // Separador ";" y BOM para que Excel en español lo abra correctamente.
   const csv = '﻿' + filas.map((f) => f.map(celda).join(';')).join('\r\n');
   descargar(`cuadro-control-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
 });
 
-$('btn-backup').addEventListener('click', () => {
-  descargar(`control-tiempo-backup-${new Date().toISOString().slice(0, 10)}.json`,
-    JSON.stringify(state, null, 2), 'application/json');
-});
-
-$('in-restore').addEventListener('change', async (ev) => {
-  const file = ev.target.files[0];
-  ev.target.value = '';
-  if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    if (!data || !data.cronos || !Array.isArray(data.control)) throw new Error('formato inválido');
-    if (!confirm('Se reemplazarán los datos actuales por los del archivo. ¿Continuar?')) return;
-    state = normalizar(data);
-    guardar();
-    render();
-  } catch (e) {
-    alert('No se pudo restaurar el archivo: ' + e.message);
-  }
-});
-
 render();
+conectarNube();
