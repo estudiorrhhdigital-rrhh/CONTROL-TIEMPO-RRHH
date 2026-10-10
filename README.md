@@ -11,8 +11,15 @@ Empresas: GRUPO TEBA, CONSOCIOS, IMAGEN, BLANCO, PILINA, INELECTO ALTA/SKY VISIO
 Usá el link publicado: https://claude.ai/artifact/J6kDKoEuQHt2CRSyqTYCMS
 Ahí los datos se guardan en la nube y no se pierden al cerrar el navegador.
 
-También se puede abrir `index.html` directamente, pero en ese caso los datos quedan
-solo en ese navegador (el programa lo avisa arriba en rojo).
+### Programa para descargar
+
+`ControlDeTiempo.html` es el programa completo en un solo archivo (se regenera con
+`python3 build.py`). Se abre con doble clic, preferentemente en Chrome o Edge.
+
+La primera vez tocá **Crear archivo de datos** y guardalo, por ejemplo, en Documentos.
+Desde ahí cada cambio se guarda en ese archivo. Al volver a abrir el programa, tocá
+**Reconectar** para dar permiso. Si el navegador perdió el vínculo, usá **Abrir archivo
+de datos existente** y elegí el mismo archivo.
 
 Cada empresa tiene su recuadro con:
 

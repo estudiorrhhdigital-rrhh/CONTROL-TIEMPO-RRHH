@@ -22,7 +22,8 @@ const EMPRESAS = [
 //
 // Los datos se guardan en la nube (capacidad `db` del link publicado):
 //   cronos/<slug-empresa>  y  control/<id>
-// Si la página se abre como archivo suelto, se usa el almacenamiento del navegador.
+// Si la página se abre como programa descargado, se guarda en el navegador y,
+// además, en un archivo de datos de la computadora (ver "Archivo de datos").
 const STORAGE_KEY = 'control-tiempo-v2';
 
 function normalizar(data) {
@@ -44,6 +45,7 @@ function cargarLocal() {
 
 function guardarLocal() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage bloqueado */ }
+  guardarArchivo();
 }
 
 let state = cargarLocal();
@@ -93,7 +95,7 @@ async function conectarNube() {
   const use = window.claude && window.claude.use;
   const ns = use ? await window.claude.use('db').catch(() => null) : null;
   if (!ns) {
-    marcarGuardado(false);
+    iniciarModoArchivo();
     return;
   }
   db = ns;
@@ -183,8 +185,9 @@ function preguntar(dlg) {
   });
 }
 
-function confirmar(txt) {
+function confirmar(txt, boton = 'Eliminar') {
   $('confirm-txt').textContent = txt;
+  $('confirm-ok').textContent = boton;
   return preguntar($('dlg-confirm'));
 }
 
@@ -459,6 +462,178 @@ $('btn-csv').addEventListener('click', () => {
   // Separador ";" y BOM para que Excel en español lo abra correctamente.
   const csv = '﻿' + filas.map((f) => f.map(celda).join(';')).join('\r\n');
   descargar(`cuadro-control-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8');
+});
+
+// ---------------------------------------------------------------------------
+// Archivo de datos (versión descargada)
+// ---------------------------------------------------------------------------
+// En Chrome y Edge de escritorio el programa guarda cada cambio en un archivo
+// .json que elige el usuario; así los datos no dependen del navegador.
+// En otros navegadores se ofrece la copia de seguridad manual.
+const soportaArchivo = typeof window.showSaveFilePicker === 'function';
+let archivo = null;        // FileSystemFileHandle vinculado
+let archivoListo = false;  // permiso concedido y datos leídos
+let guardandoArchivo = Promise.resolve();
+let archivoPendiente = false;
+
+// IndexedDB guarda el vínculo al archivo entre sesiones.
+function idb(modo, fn) {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('control-tiempo', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('kv');
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      try {
+        const tx = req.result.transaction('kv', modo);
+        const r = fn(tx.objectStore('kv'));
+        tx.oncomplete = () => resolve(r && r.result);
+        tx.onerror = () => reject(tx.error);
+      } catch (e) {
+        reject(e);
+      }
+    };
+  });
+}
+const leerVinculo = () => idb('readonly', (st) => st.get('archivo')).catch(() => null);
+const guardarVinculo = (h) => idb('readwrite', (st) => st.put(h, 'archivo')).catch(() => {});
+
+function guardarArchivo() {
+  if (!archivo || !archivoListo || archivoPendiente) return;
+  // Agrupar cambios seguidos en una sola escritura.
+  archivoPendiente = true;
+  guardandoArchivo = guardandoArchivo.then(async () => {
+    archivoPendiente = false;
+    try {
+      const w = await archivo.createWritable();
+      await w.write(JSON.stringify(state, null, 2));
+      await w.close();
+    } catch (e) {
+      console.error(e);
+      archivoListo = false;
+      aviso('No se pudo guardar en el archivo de datos. Volvé a conectarlo.');
+      renderArchivo();
+    }
+  });
+}
+
+async function leerArchivo() {
+  const txt = await (await archivo.getFile()).text();
+  if (!txt.trim()) return null;
+  const data = JSON.parse(txt);
+  if (!data || !data.cronos || !Array.isArray(data.control)) throw new Error('El archivo no es de Control de Tiempo.');
+  return data;
+}
+
+// Conecta el archivo: si tiene datos, los carga; si está vacío, guarda los actuales.
+async function activarArchivo(h, { pedirPermiso }) {
+  archivo = h;
+  archivoListo = false;
+  const opts = { mode: 'readwrite' };
+  let permiso = await h.queryPermission(opts);
+  if (permiso !== 'granted' && pedirPermiso) permiso = await h.requestPermission(opts);
+  if (permiso !== 'granted') {
+    renderArchivo();
+    return;
+  }
+  try {
+    const data = await leerArchivo();
+    archivoListo = true;
+    if (data) {
+      state = normalizar(data);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* sin storage */ }
+    } else {
+      guardarArchivo();
+    }
+    render();
+    await guardarVinculo(h);
+  } catch (e) {
+    archivo = null;
+    aviso('No se pudo leer el archivo: ' + e.message);
+  }
+  renderArchivo();
+}
+
+function renderArchivo() {
+  const conectado = archivo && archivoListo;
+  const el = $('guardado');
+  el.className = 'guardado ' + (conectado ? 'nube' : 'local');
+  if (conectado) {
+    el.textContent = `✓ Datos guardados en el archivo "${archivo.name}"`;
+    $('archivo-txt').textContent = `Cada cambio se guarda automáticamente en "${archivo.name}". ` +
+      'Conservá ese archivo: ahí están todos tus datos.';
+  } else if (archivo) {
+    el.textContent = '⚠ Falta reconectar el archivo de datos';
+    $('archivo-txt').textContent = 'Por seguridad, el navegador pide permiso para usar el archivo de datos cada vez que abrís el programa.';
+  } else if (soportaArchivo) {
+    el.textContent = '⚠ Datos guardados solo en este navegador';
+    $('archivo-txt').textContent = 'Creá un archivo de datos (por ejemplo en Documentos) para que tus registros queden guardados en la computadora y no se pierdan. Si ya tenés uno, abrilo.';
+  } else {
+    el.textContent = '⚠ Datos guardados solo en este navegador';
+    $('archivo-txt').textContent = 'Este navegador no permite guardar en un archivo automáticamente. Usá Chrome o Edge, o descargá una copia de seguridad cada vez que termines.';
+  }
+  $('btn-reconectar').hidden = !(archivo && !archivoListo);
+  $('btn-reconectar').textContent = archivo ? `Reconectar "${archivo.name}"` : '';
+  $('btn-crear-archivo').hidden = !soportaArchivo || conectado || !!archivo;
+  $('btn-abrir-archivo').hidden = !soportaArchivo || conectado;
+}
+
+async function iniciarModoArchivo() {
+  $('panel-archivo').hidden = false;
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* opcional */ }
+  if (soportaArchivo) {
+    const h = await leerVinculo();
+    if (h) await activarArchivo(h, { pedirPermiso: false });
+  }
+  renderArchivo();
+}
+
+const TIPOS_JSON = [{ description: 'Datos de Control de Tiempo', accept: { 'application/json': ['.json'] } }];
+
+$('btn-crear-archivo').addEventListener('click', async () => {
+  try {
+    const h = await window.showSaveFilePicker({ suggestedName: 'control-tiempo-datos.json', types: TIPOS_JSON });
+    // Un archivo nuevo empieza vacío: se guardan los datos actuales.
+    const w = await h.createWritable();
+    await w.write(JSON.stringify(state, null, 2));
+    await w.close();
+    await activarArchivo(h, { pedirPermiso: true });
+    aviso('Archivo de datos creado.');
+  } catch (e) {
+    if (e.name !== 'AbortError') aviso('No se pudo crear el archivo: ' + e.message);
+  }
+});
+
+$('btn-abrir-archivo').addEventListener('click', async () => {
+  try {
+    const [h] = await window.showOpenFilePicker({ types: TIPOS_JSON });
+    await activarArchivo(h, { pedirPermiso: true });
+  } catch (e) {
+    if (e.name !== 'AbortError') aviso('No se pudo abrir el archivo: ' + e.message);
+  }
+});
+
+$('btn-reconectar').addEventListener('click', () => activarArchivo(archivo, { pedirPermiso: true }));
+
+$('btn-backup').addEventListener('click', () => {
+  descargar(`control-tiempo-copia-${new Date().toISOString().slice(0, 10)}.json`,
+    JSON.stringify(state, null, 2), 'application/json');
+});
+
+$('in-restore').addEventListener('change', async (ev) => {
+  const file = ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || !data.cronos || !Array.isArray(data.control)) throw new Error('el archivo no es una copia de Control de Tiempo');
+    if (!(await confirmar('Se reemplazarán los datos actuales por los de la copia. ¿Continuar?', 'Restaurar'))) return;
+    state = normalizar(data);
+    guardarLocal();
+    render();
+    aviso('Copia restaurada.');
+  } catch (e) {
+    aviso('No se pudo restaurar: ' + e.message);
+  }
 });
 
 render();
